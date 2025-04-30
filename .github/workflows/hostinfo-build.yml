@@ -1,7 +1,7 @@
 name: Host Info Server Build Automation
 
 on:
-  push:                 # Add this part
+  push:
     paths:
       - python/**
   workflow_dispatch:
@@ -31,3 +31,14 @@ jobs:
       run: |
         python -m py_compile python/host_info_server.py
         ls -lR python/
+    
+    - name: Run unit tests
+      run: |
+        cd python/
+        python -m unittest test_hostinfo.py
+    
+    - name: Generate coverage report
+      run: |
+        cd python/
+        coverage run -m unittest test_hostinfo.py
+        coverage report -m
