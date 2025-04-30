@@ -1,0 +1,87 @@
+name: Host Info Server Build, Test, Scan, & Containerize Automation
+
+on:
+  push:
+    paths:
+      - python/**
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11','3.12']
+    
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install coverage
+    
+    - name: Verify code builds
+      run: |
+        python -m py_compile python/host_info_server.py
+        ls -lR python/
+    
+    - name: Run unit tests
+      run: |
+        cd python/
+        python -m unittest test_hostinfo.py
+    
+    - name: Generate coverage report
+      run: |
+        cd python/
+        coverage run -m unittest test_hostinfo.py
+        coverage report -m
+      
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        linter: [flake8, pylint, ruff, mypy, pytype, pyright, fixit, pyre]    
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+    - run: |
+        cd python/
+    - uses: advanced-security/python-lint-code-scanning-action@v1
+      with:
+        linter: ${{ matrix.linter }}
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v3
+    - name: Run PyCharm Security to scan for security issues
+      uses: tonybaloney/pycharm-security@master
+      with:
+        path: python/
+
+  docker:
+    needs: [build-test, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - run: |
+          cd python/
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./python
+          push: false
+          tags: 127.0.0.1:5000/student/hostinfo:latest
